@@ -1,29 +1,29 @@
-# Docker
-# Build a Docker image
-# https://docs.microsoft.com/azure/devops/pipelines/languages/docker
-
 trigger:
-- main
+- dependabot/npm_and_yarn/multi-06c100f89b
 
-resources:
-- repo: self
+pool:
+  name: Default
 
-variables:
-  tag: '$(Build.BuildId)'
+steps:
 
-stages:
-- stage: Build
-  displayName: Build image
-  jobs:
-  - job: Build
-    displayName: Build
-    pool:
-      vmImage: ubuntu-latest
-    steps:
-    - task: Docker@2
-      displayName: Build an image
-      inputs:
-        command: build
-        dockerfile: '$(Build.SourcesDirectory)/Dockerfile'
-        tags: |
-          $(tag)
+# Step 1: Build Angular app using Docker (Node base image)
+- script: |
+    docker build -f Dockerfile.build -t angular-builder .
+  displayName: 'Build Angular app inside Docker'
+
+# Step 2: Extract dist folder from builder container
+- script: |
+    docker create --name extract angular-builder
+    docker cp extract:/app/dist ./dist
+    docker rm extract
+  displayName: 'Extract dist folder from builder container'
+
+# Step 3: Build final Nginx Docker image
+- script: |
+    docker build -t angular-fargate-poc -f Dockerfile .
+  displayName: 'Build Nginx Docker image with dist'
+
+# Step 4: Run container locally (optional/debug)
+- script: |
+    docker run -d -p 8080:80 --name angular-poc angular-fargate-poc
+  displayName: 'Run Docker container locally'
